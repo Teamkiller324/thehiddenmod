@@ -11,7 +11,7 @@
 #include <sdkhooks>
 #include <morecolors>
 #undef REQUIRE_EXTENSIONS
-#tryinclude <steamtools>
+#tryinclude <steamworks>
 #define REQUIRE_EXTENSIONS
 
 #pragma semicolon 1
@@ -77,7 +77,6 @@ ConVar g_hCV_hidden_bombdetonationdelay;
 ConVar g_hCV_hidden_bombignoreuser;
 ConVar g_hCV_hidden_ghosts;
 Handle g_hWeaponEquip;
-Handle g_hGameConfig;
 //cvar globals
 int g_iCV_hidden_tauntdamage;
 bool g_bCV_hidden_ghosts;
@@ -100,8 +99,8 @@ char g_sBlipSound[255] = "buttons/blip1.wav";
 char g_sBeamSprite[255] = "sprites/laser.vmt";
 char g_sHaloSprite[255] = "sprites/halo01.vmt";
 
-#if defined _steamtools_included
-bool g_bSteamTools = false;
+#if defined _SteamWorks_Included
+bool g_bSteamWorks = false;
 #endif
 
 public Plugin myinfo = 
@@ -122,8 +121,8 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	}
 
 	g_bLateLoad = late;
-	#if defined _steamtools_included
-	MarkNativeAsOptional("Steam_SetGameDescription");
+	#if defined _SteamWorks_Included
+	MarkNativeAsOptional("SteamWorks_SetGameDescription");
 	#endif
 	return APLRes_Success;
 }
@@ -164,8 +163,8 @@ public void OnPluginStart()
 	RegAdminCmd("sm_nexthidden", Cmd_NextHidden, ADMFLAG_CHEATS, "Forces a certain player to be the next Hidden, regardless of who wins the round.");
 	RegConsoleCmd("sm_hiddenhelp", Cmd_HiddenHelp, "Shows the help menu for the Hidden mod redux.");
 	
-	#if defined _steamtools_included
-	g_bSteamTools = LibraryExists("SteamTools");
+	#if defined _SteamWorks_Included
+	g_bSteamWorks = LibraryExists("SteamWorks");
 	#endif
 	
 	// Auto-create the config file
@@ -174,19 +173,19 @@ public void OnPluginStart()
 	LoadCvars();
 	LoadTranslations("the.hidden.mod.redux.phrases");
 	
-	if(g_bLateLoad && GetConVarBool(g_hCV_hidden_enabled) && IsArenaMap()) 
+	if(g_bLateLoad && g_hCV_hidden_enabled.BoolValue && IsArenaMap()) 
 	{
 		OnConfigsExecuted();
 		ActivatePlugin();
 	} 
 
-	HookConVarChange(g_hCV_hidden_enabled, cvhook_enabled);
+	g_hCV_hidden_enabled.AddChangeHook(cvhook_enabled);
 	g_hHiddenHudHp = CreateHudSynchronizer();
 	g_hHiddenHudStamina = CreateHudSynchronizer();
 	g_hHiddenHudHunger = CreateHudSynchronizer();
 	g_hHiddenHudClusterBomb = CreateHudSynchronizer();
 	
-	g_hGameConfig = LoadGameConfigFile("the.hidden.mod.redux");
+	GameData g_hGameConfig = new GameData("the.hidden.mod.redux");
 	
 	if(!g_hGameConfig)
 	{
@@ -206,7 +205,7 @@ public void OnPluginStart()
 //remove hidden's vision, everything else gets unloaded by sourcemod
 public void OnPluginEnd() 
 {
-	if(!GetConVarBool(g_hCV_hidden_enabled)) 
+	if(!g_hCV_hidden_enabled.BoolValue) 
 	{
 		return;
 	}
@@ -230,40 +229,40 @@ public void OnPluginEnd()
 	
 	CreateTimer(2.0, Timer_Win, _, TIMER_FLAG_NO_MAPCHANGE);
 }
-//if steamtools is running
-#if defined _steamtools_included
+//if SteamWorks is running
+#if defined _SteamWorks_Included
 public void OnLibraryAdded(const char[] name) 
 {
-	if(strcmp(name, "SteamTools", false) == 0) 
+	if(strcmp(name, "SteamWorks", false) == 0) 
 	{
-		g_bSteamTools = true;
+		g_bSteamWorks = true;
 	}
 	
 }
 #endif
-//if steamtools isnt running anymore
-#if defined _steamtools_included
+//if SteamWorks isnt running anymore
+#if defined _SteamWorks_Included
 public void OnLibraryRemoved(const char[] name) 
 {
-	if(strcmp(name, "SteamTools", false) == 0) 
+	if(strcmp(name, "SteamWorks", false) == 0) 
 	{
-		g_bSteamTools = false;
+		g_bSteamWorks = false;
 	}
 }
 #endif
 //change some tf2 cvars
 public void OnConfigsExecuted() 
 {
-	SetConVarInt(FindConVar("tf_arena_use_queue"), 0);
-	SetConVarInt(FindConVar("tf_arena_override_team_size"), 32);
-	SetConVarInt(FindConVar("mp_teams_unbalance_limit"), 0);
-	SetConVarInt(FindConVar("tf_arena_first_blood"), 0);
-	SetConVarInt(FindConVar("mp_autoteambalance"), 0);
-	SetConVarInt(FindConVar("tf_dropped_weapon_lifetime"), 0);
-	SetConVarInt(FindConVar("tf_classlimit"), 0);
-	SetConVarInt(FindConVar("tf_playergib"), 0);
-	SetConVarInt(FindConVar("tf_bot_reevaluate_class_in_spawnroom"), 0);
-	SetConVarString(FindConVar("tf_bot_force_class"), "");
+	FindConVar("tf_arena_use_queue").SetInt(0);
+	FindConVar("tf_arena_override_team_size").SetInt(32);
+	FindConVar("mp_teams_unbalance_limit").SetInt(0);
+	FindConVar("tf_arena_first_blood").SetInt(0);
+	FindConVar("mp_autoteambalance").SetInt(0);
+	FindConVar("tf_dropped_weapon_lifetime").SetInt(0);
+	FindConVar("tf_classlimit").SetInt(0);
+	FindConVar("tf_playergib").SetInt(0);
+	FindConVar("tf_bot_reevaluate_class_in_spawnroom").SetInt(0);
+	FindConVar("tf_bot_force_class").SetString("");
 }
 //attempt to activate the plugin on mapstart, change game and precache sounds and models
 public void OnMapStart() 
@@ -284,7 +283,7 @@ public void OnMapStart()
 	g_iHaloSprite = PrecacheModel(g_sHaloSprite, true);
 	g_iBeamSprite = PrecacheModel(g_sBeamSprite, true);
 	
-	if(GetConVarBool(g_hCV_hidden_enabled) && IsArenaMap()) 
+	if(g_hCV_hidden_enabled.BoolValue && IsArenaMap()) 
 	{
 		ActivatePlugin();
 	} 
@@ -297,7 +296,7 @@ public void OnMapStart()
 //deactivate the plugin on mapend, change game back
 public void OnMapEnd() 
 {
-	if(GetConVarBool(g_hCV_hidden_enabled)) 
+	if(g_hCV_hidden_enabled.BoolValue) 
 	{
 		DeactivatePlugin();
 	}
@@ -367,8 +366,8 @@ void ActivatePlugin()
 		}
 	}
 	
-	#if defined _steamtools_included	
-	if(g_bSteamTools)
+	#if defined _SteamWorks_Included	
+	if(g_bSteamWorks)
 	{
 		SetGameDescription(); 
 	}
@@ -426,23 +425,23 @@ void DeactivatePlugin()
 		}
 	}
 	
-	#if defined _steamtools_included	
-	if(g_bSteamTools)
+	#if defined _SteamWorks_Included	
+	if(g_bSteamWorks)
 	{
 		SetGameDescription(); 
 	}
 	#endif
 }
 //block some buildings upgrades
-public void player_upgradedobject(Handle event, const char[] name, bool dontBroadcast)
+public void player_upgradedobject(Event event, const char[] name, bool dontBroadcast)
 {
 	if(!GetConVarBool(g_hCV_hidden_enabled))
 	{
 		return;
 	}
 	
-	int objectid = GetEventInt(event,"index");
-	int client = GetClientOfUserId(GetEventInt(event,"userid"));
+	int objectid = event.GetInt("index");
+	int client = GetClientOfUserId(event.GetInt("userid"));
 	int obj = GetEntProp(objectid, Prop_Send, "m_iObjectType");
 	int metaloff = FindDataMapInfo(client, "m_iAmmo") + (3 * 4);
 	int upgrademetalcost = GetEntProp(objectid, Prop_Send, "m_iUpgradeMetalRequired");
@@ -472,15 +471,15 @@ public void player_upgradedobject(Handle event, const char[] name, bool dontBroa
 	}
 }
 //block some buildings
-public void player_builtobject(Handle event, const char[] name, bool dontBroadcast)
+public void player_builtobject(Event event, const char[] name, bool dontBroadcast)
 {
-	if(!GetConVarBool(g_hCV_hidden_enabled))
+	if(!g_hCV_hidden_enabled.BoolValue)
 	{
 		return;
 	}
 	
-	int objectid = GetEventInt(event,"index");
-	int client = GetClientOfUserId(GetEventInt(event,"userid"));
+	int objectid = event.GetInt("index");
+	int client = GetClientOfUserId(event.GetInt("userid"));
 	int obj = GetEntProp(objectid, Prop_Send, "m_iObjectType");
 	int metaloff = FindDataMapInfo(client, "m_iAmmo") + (3 * 4);
 	int clientsmetal = GetEntData(client, metaloff, 4) + 125;
@@ -488,7 +487,7 @@ public void player_builtobject(Handle event, const char[] name, bool dontBroadca
 		clientsmetal = 200;
 	}
 	
-	if(GetConVarBool(g_hCV_hidden_allowsentries) == false && obj == view_as<int>(TFObject_Sentry)) 
+	if(g_hCV_hidden_allowsentries.BoolValue == false && obj == view_as<int>(TFObject_Sentry)) 
 	{
 		AcceptEntityInput(objectid, "Kill");
 		SetEntData(client, metaloff, clientsmetal, 4, true);
@@ -499,7 +498,7 @@ public void player_builtobject(Handle event, const char[] name, bool dontBroadca
 //a player pressed a button
 public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon) 
 {
-	if(!GetConVarBool(g_hCV_hidden_enabled)) 
+	if(!g_hCV_hidden_enabled.BoolValue) 
 	{
 		return Plugin_Continue;
 	}
@@ -541,7 +540,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 //lets block sentries for engies
 public Action Cmd_build(int client, char[] cmd, int args)
 {
-	if(!GetConVarBool(g_hCV_hidden_enabled)) 
+	if(!g_hCV_hidden_enabled.BoolValue) 
 	{
 		return Plugin_Continue;
 	}
@@ -550,7 +549,7 @@ public Action Cmd_build(int client, char[] cmd, int args)
 	GetCmdArg(1, arg1, sizeof(arg1));
 	int building = StringToInt(arg1);
 	
-	if(!GetConVarBool(g_hCV_hidden_allowsentries) && building == view_as<int>(TFObject_Sentry)) 
+	if(!g_hCV_hidden_allowsentries.BoolValue && building == view_as<int>(TFObject_Sentry)) 
 	{
 		CPrintToChat(client, "{mediumseagreen}[%s] %t", PLUGIN_NAME, "hidden_eng3");
 		return Plugin_Handled;
@@ -561,12 +560,12 @@ public Action Cmd_build(int client, char[] cmd, int args)
 //block taunts
 public Action Cmd_taunt(int client, char[] cmd, int args)
 {
-	if(!GetConVarBool(g_hCV_hidden_enabled)) 
+	if(!g_hCV_hidden_enabled.BoolValue) 
 	{
 		return Plugin_Continue;
 	}
 	
-	if(!GetConVarBool(g_hCV_hidden_taunts)) 
+	if(!g_hCV_hidden_taunts.BoolValue) 
 	{
 		CPrintToChat(client, "{mediumseagreen}[%s] %t", PLUGIN_NAME, "hidden_taunts");
 		return Plugin_Handled;
@@ -577,7 +576,7 @@ public Action Cmd_taunt(int client, char[] cmd, int args)
 //team selection
 public Action Cmd_join(int client, char[] cmd, int args)
 {
-	if(!GetConVarBool(g_hCV_hidden_enabled)) 
+	if(!g_hCV_hidden_enabled.BoolValue) 
 	{
 		return Plugin_Continue;
 	}
@@ -617,13 +616,13 @@ public Action Cmd_join(int client, char[] cmd, int args)
 		{
 			if(StrEqual(arg1, "auto", true))
 			{
-				ChangeClientTeam(client, 2);
+				TF2_ChangeClientTeam(client, TFTeam_Red);
 				ShowVGUIPanel(client, "class_red");
 			}
 			else
 			{
 				PrintCenterText(client, "%t", "hidden_team2");
-				ChangeClientTeam(client, 2);
+				TF2_ChangeClientTeam(client, TFTeam_Red);
 				ShowVGUIPanel(client, "class_red");
 			}
 
@@ -636,7 +635,7 @@ public Action Cmd_join(int client, char[] cmd, int args)
 //class change
 public Action Cmd_class(int client, char[] cmd, int args)
 {
-	if(!GetConVarBool(g_hCV_hidden_enabled)) 
+	if(!g_hCV_hidden_enabled.BoolValue) 
 	{
 		return Plugin_Continue;
 	}
@@ -679,7 +678,7 @@ public Action Cmd_class(int client, char[] cmd, int args)
 //on take damage hook
 public Action OnTakeDamage(int client, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3], int damagecustom)
 {
-	if(!GetConVarBool(g_hCV_hidden_enabled)) 
+	if(!g_hCV_hidden_enabled.BoolValue) 
 	{
 		return Plugin_Continue;
 	}
@@ -706,22 +705,22 @@ public Action OnTakeDamage(int client, int &attacker, int &inflictor, float &dam
 	return Plugin_Continue;
 }
 //a player got hurt, only care about the hidden
-public void player_hurt_pre(Handle event, const char[] name, bool dontBroadcast) 
+public void player_hurt_pre(Event event, const char[] name, bool dontBroadcast) 
 {
-	if(!GetConVarBool(g_hCV_hidden_enabled)) 
+	if(!g_hCV_hidden_enabled.BoolValue) 
 	{
 		return;
 	}
 
-	int victim = GetClientOfUserId(GetEventInt(event, "userid"));
+	int victim = GetClientOfUserId(event.GetInt("userid"));
 	
 	if(victim != g_iTheCurrentHidden)
 	{
 		return;
 	}
 
-	int attacker = GetClientOfUserId(GetEventInt(event, "attacker"));	
-	int damage = GetEventInt(event, "damageamount");
+	int attacker = GetClientOfUserId(event.GetInt("attacker"));
+	int damage = event.GetInt("damageamount");
 
 	if(attacker != g_iTheCurrentHidden)
 	{
@@ -737,21 +736,21 @@ public void player_hurt_pre(Handle event, const char[] name, bool dontBroadcast)
 }
 
 //a player got hurt, only care about the hidden
-public void player_hurt(Handle event, const char[] name, bool dontBroadcast) 
+public void player_hurt(Event event, const char[] name, bool dontBroadcast) 
 {
 	if(!GetConVarBool(g_hCV_hidden_enabled)) 
 	{
 		return;
 	}
 
-	int victim = GetClientOfUserId(GetEventInt(event, "userid"));
+	int victim = GetClientOfUserId(event.GetInt("userid"));
 	
 	if(victim != g_iTheCurrentHidden)
 	{
 		return;
 	}
 
-	int damage = GetEventInt(event, "damageamount");
+	int damage = event.GetInt("damageamount");
 	g_iHiddenCurrentHp -= damage;
 	
 	if(g_iHiddenCurrentHp < 0)
@@ -760,24 +759,24 @@ public void player_hurt(Handle event, const char[] name, bool dontBroadcast)
 	}
 }
 //a player spawned. lets check their classes and change/respawn if needed
-public void player_spawn(Handle event, const char[] name, bool dontBroadcast) 
+public void player_spawn(Event event, const char[] name, bool dontBroadcast) 
 {
-	int client = GetClientOfUserId(GetEventInt(event, "userid"));
+	int client = GetClientOfUserId(event.GetInt("userid"));
 	
-	if(!GetConVarBool(g_hCV_hidden_enabled) || !IsPlayerHere(client) || !IsPlayerAlive(client)) 
+	if(!g_hCV_hidden_enabled.BoolValue || !IsPlayerHere(client) || !IsPlayerAlive(client)) 
 	{
 		return;
 	}
 
 	g_iDamageToHidden[client] = 0;
-	TFClassType class = view_as<TFClassType>(GetEventInt(event, "class"));
+	TFClassType class = view_as<TFClassType>(event.GetInt("class"));
 	
 	if(client == g_iTheCurrentHidden) 
 	{
 		if(class != TFClass_Spy)
 		{
 			SetEntProp(client, Prop_Send, "m_lifeState", 2);
-			ChangeClientTeam(client, 3);
+			TF2_ChangeClientTeam(client, TFTeam_Blue);
 			TF2_SetPlayerClass(client, TFClass_Spy, false, true);
 			CreateTimer(0.1, Timer_Respawn, client, TIMER_FLAG_NO_MAPCHANGE);
 			return;
@@ -800,33 +799,33 @@ public void player_spawn(Handle event, const char[] name, bool dontBroadcast)
 	}
 	else
 	{
-		int team = GetClientTeam(client);
+		TFTeam team = TF2_GetClientTeam(client);
 		
 		if(g_bCV_hidden_forcebotsclass && IsFakeClient(client) && class != TFClass_Sniper)
 		{
 			SetEntProp(client, Prop_Send, "m_lifeState", 2);
-			ChangeClientTeam(client, 2);
+			TF2_ChangeClientTeam(client, TFTeam_Red);
 			TF2_SetPlayerClass(client, TFClass_Sniper, false, true);
 			CreateTimer(0.1, Timer_Respawn, client, TIMER_FLAG_NO_MAPCHANGE);
 			return;	
 		}
 
-		if(class == TFClass_Unknown || class == TFClass_Spy || team != 2) 
+		if(class == TFClass_Unknown || class == TFClass_Spy || team != TFTeam_Red) 
 		{
 			SetEntProp(client, Prop_Send, "m_lifeState", 2);
-			ChangeClientTeam(client, 2);
+			TF2_ChangeClientTeam(client, TFTeam_Blue);
 			TF2_SetPlayerClass(client, view_as<TFClassType>(PickAClass()), false, true);
 			CreateTimer(0.1, Timer_Respawn, client, TIMER_FLAG_NO_MAPCHANGE);
 			return;
 		}
 		
-		if((!GetConVarBool(g_hCV_hidden_allowpyroweapons) && class == TFClass_Pyro) || (!GetConVarBool(g_hCV_hidden_allowheavyweapons) && class == TFClass_Heavy)) 
+		if((!g_hCV_hidden_allowpyroweapons.BoolValue && class == TFClass_Pyro) || (!g_hCV_hidden_allowheavyweapons.BoolValue && class == TFClass_Heavy)) 
 		{
 			TF2_RemoveWeaponSlot(client, 0);
 			EquipPlayerWeapon(client, GetPlayerWeaponSlot(client, 2));
 		}
 		
-		if(class == TFClass_Sniper && !GetConVarBool(g_hCV_hidden_allowrazorback))
+		if(class == TFClass_Sniper && !g_hCV_hidden_allowrazorback.BoolValue)
 		{
 			int i = MaxClients+1;
 			int ent = 0;
@@ -857,9 +856,9 @@ public void player_spawn(Handle event, const char[] name, bool dontBroadcast)
 	}
 }
 //a player died
-public void player_death(Handle event, const char[] name, bool dontBroadcast) 
+public void player_death(Event event, const char[] name, bool dontBroadcast) 
 {
-	if(!GetConVarBool(g_hCV_hidden_enabled)) 
+	if(!g_hCV_hidden_enabled.BoolValue) 
 	{
 		return;
 	}
@@ -869,8 +868,8 @@ public void player_death(Handle event, const char[] name, bool dontBroadcast)
 		return;
 	}
 
-	int victim = GetClientOfUserId(GetEventInt(event, "userid"));
-	int attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+	int victim = GetClientOfUserId(event.GetInt("userid"));
+	int attacker = GetClientOfUserId(event.GetInt("attacker"));
 	
 	if(victim != g_iTheCurrentHidden)
 	{
@@ -884,9 +883,9 @@ public void player_death(Handle event, const char[] name, bool dontBroadcast)
 		if(attacker == g_iTheCurrentHidden)
 		{
 			g_fHiddenInvisibility = g_fCV_hidden_starvationtime;
-			int hpperkill = GetConVarInt(g_hCV_hidden_hpperkill);
-			int customkill = GetEventInt(event, "customkill");
-			int weaponi = GetEventInt(event, "weaponid");
+			int hpperkill = g_hCV_hidden_hpperkill.IntValue;
+			int customkill = event.GetInt("customkill");
+			int weaponi = event.GetInt("weaponid");
 			
 			if(IsPlayerHere(g_iTheCurrentHidden) && IsPlayerAlive(g_iTheCurrentHidden))
 			{
@@ -1450,7 +1449,7 @@ public Action Cmd_NextHidden(int client, int args)
 //cmd for help menu
 public Action Cmd_HiddenHelp(int client, int args)
 {
-	if(!GetConVarBool(g_hCV_hidden_enabled)) 
+	if(!g_hCV_hidden_enabled.BoolValue) 
 	{
 		return Plugin_Continue;
 	}
@@ -1988,18 +1987,18 @@ void Client_RespawnAll(bool Notify)
 	{
 		if(IsPlayerHereLoopCheck(i))
 		{
-			switch (GetClientTeam(i))
+			switch (TF2_GetClientTeam(i))
 			{
-				case 0,1:
+				case TFTeam_Unassigned,TFTeam_Spectator:
 				{
 					continue;
 				}
-				case 2:
+				case TFTeam_Red:
 				{
 					if(i == g_iTheCurrentHidden)
 					{
 						SetEntProp(i, Prop_Send, "m_lifeState", 2);
-						ChangeClientTeam(i, 3);
+						TF2_ChangeClientTeam(i, TFTeam_Blue);
 						TF2_SetPlayerClass(i, TFClass_Spy);
 						CreateTimer(0.1, Timer_Respawn, i, TIMER_FLAG_NO_MAPCHANGE);
 						if(Notify)
@@ -2008,7 +2007,7 @@ void Client_RespawnAll(bool Notify)
 						}
 					}
 				}
-				case 3:
+				case TFTeam_Blue:
 				{
 					if(i != g_iTheCurrentHidden)
 					{
@@ -2267,12 +2266,12 @@ bool IsPlayerHereLoopCheck(int client)
 	return (IsClientConnected(client) && IsClientInGame(client));
 }
 //changing the game in server browser
-#if defined _steamtools_included
+#if defined _SteamWorks_Included
 void SetGameDescription() 
 {
 	char gameDesc[64];
 	
-	if(GetConVarBool(g_hCV_hidden_enabled)) 
+	if(g_hCV_hidden_enabled.BoolValue) 
 	{
 		Format(gameDesc, sizeof(gameDesc), "The Hidden Mod Redux");
 	} 
@@ -2281,7 +2280,7 @@ void SetGameDescription()
 		gameDesc = "Team Fortress";
 	}
 	
-	Steam_SetGameDescription(gameDesc);
+	SteamWorks_SetGameDescription(gameDesc);
 }
 #endif
 //a better way to kill players
